@@ -38,8 +38,7 @@ public class YouTubeChannelController {
 			size = 50;
 		}
 
-		// TODO: Gather videos information of the channel
-		return new YouTubeVideosSearchInfo();
+		return youTubeService.getChannelVideos(channelId, size);
 	}
 
 	@Autowired
