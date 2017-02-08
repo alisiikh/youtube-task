@@ -23,8 +23,6 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -33,6 +31,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static com.alisiikh.util.UrlUtils.encode;
 /**
  * @author lial
  */
@@ -52,7 +51,7 @@ public class YouTubeService implements IYouTubeService {
 		Validate.notBlank(videoId, "Video id is required!");
 
 		try {
-			Optional<JSONArray> jsonArray = readDataFromYoutube("/watch?spf=navigate&v=" + encodeParam(videoId));
+			Optional<JSONArray> jsonArray = readDataFromYoutube("/watch?spf=navigate&v=" + encode(videoId));
 			if (!jsonArray.isPresent()) {
 				LOG.warn("Failed to get data from YouTube");
 				return null;
@@ -62,20 +61,12 @@ public class YouTubeService implements IYouTubeService {
 			String contentHtml = (String) ((JSONObject) nestedObj.get("body"))
 					.get("watch7-container");
 
-			Document doc = Jsoup.parse(contentHtml);
+			Document doc = Jsoup.parseBodyFragment(contentHtml);
 
 			return findVideoInfo(doc);
 		} catch (IOException e) {
 			LOG.warn("Exception occurred during fetching video info", e);
 			return null;
-		}
-	}
-
-	private String encodeParam(String param) {
-		try {
-			return URLEncoder.encode(param, "UTF-8");
-		} catch (UnsupportedEncodingException e) {
-			return param;
 		}
 	}
 
@@ -112,18 +103,18 @@ public class YouTubeService implements IYouTubeService {
 		Validate.notBlank(channelId, "Channel id is required!");
 
 		try {
-			Optional<JSONObject> jsonObj = readDataFromYoutube("/channel/" + encodeParam(channelId) + "/about?spf=navigate");
+			Optional<JSONObject> jsonObj = readDataFromYoutube("/channel/" + encode(channelId) + "/about?spf=navigate");
 			if (!jsonObj.isPresent()) {
 				throw new YouTubeDataFetchException();
 			}
 
 			String contentHtml = (String) ((JSONObject) jsonObj.get().get("body")).get("content");
 
-			Document doc = Jsoup.parse(contentHtml);
+			Document doc = Jsoup.parseBodyFragment(contentHtml);
 
 			YouTubeChannelInfo channelInfo = findChannelInfo(doc);
 			channelInfo.setId(channelId);
-			channelInfo.setUrl(YOUTUBE_WEBSITE_ADDRESS + "/channel/" + encodeParam(channelId));
+			channelInfo.setUrl(YOUTUBE_WEBSITE_ADDRESS + "/channel/" + encode(channelId));
 
 			return channelInfo;
 		} catch (IOException e) {
@@ -155,7 +146,7 @@ public class YouTubeService implements IYouTubeService {
 					}
 					String contentHtml = (String) ((JSONObject) jsonObject.get().get("body")).get("content");
 
-					Document doc = Jsoup.parse(contentHtml);
+					Document doc = Jsoup.parseBodyFragment(contentHtml);
 
 					videosSearchInfo.setVideos(gatherChannelVideosInfo(doc, size));
 				} catch (IOException e) {
@@ -180,29 +171,31 @@ public class YouTubeService implements IYouTubeService {
 
 		int currentSize = videoBlocks.size();
 
-		String moreVideosHref = doc.select("#browse-items-primary .load-more-button")
-				.attr("data-uix-load-more-href");
+		if (currentSize < size) {
+			String moreVideosHref = doc.select("#browse-items-primary .load-more-button")
+					.attr("data-uix-load-more-href");
 
-		while (currentSize < size) {
-			try {
-				Optional<JSONObject> jsonObj = readDataFromYoutube(moreVideosHref);
-				if (!jsonObj.isPresent()) {
-					throw new YouTubeDataFetchException();
+			while (currentSize < size) {
+				try {
+					Optional<JSONObject> jsonObj = readDataFromYoutube(moreVideosHref);
+					if (!jsonObj.isPresent()) {
+						throw new YouTubeDataFetchException();
+					}
+
+					String contentHtml = (String) jsonObj.get().get("content_html");
+					String moreVideosButtonHtml = (String) jsonObj.get().get("load_more_widget_html");
+
+					moreVideosHref = Jsoup.parseBodyFragment(moreVideosButtonHtml).body().select(".load-more-button")
+							.attr("data-uix-load-more-href");
+
+					Element extraVideosBody = Jsoup.parseBodyFragment(contentHtml).body();
+					Elements extraVideoBlocks = extraVideosBody.select(".channels-content-item");
+
+					videoBlocks.addAll(extraVideoBlocks);
+					currentSize += extraVideoBlocks.size();
+				} catch (IOException e) {
+					// nothing
 				}
-
-				String contentHtml = (String) jsonObj.get().get("content_html");
-				String moreVideosButtonHtml = (String) jsonObj.get().get("load_more_widget_html");
-
-				moreVideosHref = Jsoup.parse(moreVideosButtonHtml).select(".load-more-button")
-						.attr("data-uix-load-more-href");
-
-				Document extraVideosDoc = Jsoup.parse(contentHtml);
-				Elements extraVideoBlocks = extraVideosDoc.select(".channels-content-item");
-
-				videoBlocks.addAll(extraVideoBlocks);
-				currentSize += extraVideoBlocks.size();
-			} catch (IOException e) {
-				// nothing
 			}
 		}
 
