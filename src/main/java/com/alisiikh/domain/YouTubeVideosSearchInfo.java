@@ -1,10 +1,16 @@
 package com.alisiikh.domain;
 
-import lombok.EqualsAndHashCode;
+import lombok.Data;
+
+import java.util.List;
+
 
 /**
  * @author lial
  */
-@EqualsAndHashCode
+@Data
 public class YouTubeVideosSearchInfo {
+	private YouTubeChannelInfo channelInfo;
+	private int requestedVideos;
+	private List<YouTubeVideoInfo> videos;
 }

@@ -1,22 +1,17 @@
 package com.alisiikh.domain;
 
+import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.ToString;
 
 /**
  * @author lial
  */
-
-@EqualsAndHashCode
+@Data
+@ToString(callSuper = true)
+@EqualsAndHashCode(callSuper = true)
 public class YouTubeChannelInfo extends YouTubeEntity {
-	@Getter
-	@Setter
 	private long registrationDate;
-	@Getter
-	@Setter
 	private int subscribers;
-	@Getter
-	@Setter
 	private int views;
 }

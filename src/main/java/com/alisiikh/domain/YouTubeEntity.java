@@ -1,18 +1,13 @@
 package com.alisiikh.domain;
 
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.Data;
+
 
 /**
  * @author lial
  */
-@EqualsAndHashCode
+@Data
 public abstract class YouTubeEntity {
-	@Getter
-	@Setter
 	private String id;
-	@Getter
-	@Setter
 	private String url;
 }

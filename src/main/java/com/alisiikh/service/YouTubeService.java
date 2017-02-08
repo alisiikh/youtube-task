@@ -2,6 +2,7 @@ package com.alisiikh.service;
 
 import com.alisiikh.domain.YouTubeChannelInfo;
 import com.alisiikh.domain.YouTubeVideoInfo;
+import com.alisiikh.domain.YouTubeVideosSearchInfo;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.jsoup.Jsoup;
@@ -54,6 +55,11 @@ public class YouTubeService implements IYouTubeService {
 			LOG.debug("Exception occurred during fetching channel info");
 			return null;
 		}
+	}
+
+	@Override
+	public YouTubeVideosSearchInfo getChannelVideos(String channelId, int size) {
+		return new YouTubeVideosSearchInfo();
 	}
 
 	private YouTubeChannelInfo gatherChannelInfo(Document doc) {
@@ -118,7 +124,7 @@ public class YouTubeService implements IYouTubeService {
 
 		videoInfo.setId(videoId);
 		videoInfo.setTitle(title);
-		videoInfo.setDuration(parseDuration(duration));
+		videoInfo.setDuration(convertDurationIntoSeconds(duration));
 		videoInfo.setViews(Integer.valueOf(views));
 		videoInfo.setUrl(url);
 
@@ -132,7 +138,7 @@ public class YouTubeService implements IYouTubeService {
 		return videoInfo;
 	}
 
-	private int parseDuration(String durationString) {
+	private int convertDurationIntoSeconds(String durationString) {
 		Matcher m = DURATION_PATTERN.matcher(durationString);
 		if (m.find()) {
 			int minutes = Integer.valueOf(m.group(1));
