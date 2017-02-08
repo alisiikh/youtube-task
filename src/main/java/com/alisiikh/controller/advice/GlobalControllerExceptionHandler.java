@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @ControllerAdvice
 public class GlobalControllerExceptionHandler {
 
-	@ResponseStatus(value = HttpStatus.NOT_FOUND, reason = "Couldn't find YouTube video information")
+	@ResponseStatus(value = HttpStatus.NOT_FOUND, reason = "Couldn't find YouTube entity information")
 	@ExceptionHandler(YouTubeEntityNotFoundException.class)
 	public void handleYouTubeEntityNotFound() {
 		// nothing
