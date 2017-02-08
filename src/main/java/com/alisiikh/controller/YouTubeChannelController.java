@@ -19,26 +19,19 @@ public class YouTubeChannelController {
 	private IYouTubeService youTubeService;
 
 	@RequestMapping(value = "/{channelId}", method = RequestMethod.GET)
-	public YouTubeChannelInfo getChannelInfo(@PathVariable("channelId") String channelId,
-			HttpServletResponse response) throws IOException {
-		YouTubeChannelInfo channelInfo = youTubeService.getChannelInfo(channelId);
-
-		if (channelInfo == null) {
-			response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Channel with id = '" + channelId + "' was not found!");
-			return null;
-		} else {
-			return channelInfo;
-		}
+	public YouTubeChannelInfo getChannelInfo(@PathVariable("channelId") String channelId) throws IOException {
+		return youTubeService.getChannelInfo(channelId);
 	}
 
-	@RequestMapping(value = "/{channelId}/videos")
+	@RequestMapping(value = "/{channelId}/videos", method = RequestMethod.GET)
 	public YouTubeVideosSearchInfo getVideosInfo(@PathVariable("channelId") String channelId,
 			@RequestParam(defaultValue = "10") int size, HttpServletResponse response) throws IOException {
-		if (size > 50) {
-			size = 50;
+		if (size <= 0) {
+			response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Size parameter should be in bounds of (0,50]");
+			return null;
 		}
 
-		return youTubeService.getChannelVideos(channelId, size);
+		return youTubeService.getMostPopularVideosOfChannel(channelId, size > 50 ? 50 : size);
 	}
 
 	@Autowired

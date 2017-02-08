@@ -3,9 +3,12 @@ package com.alisiikh.service;
 import com.alisiikh.domain.YouTubeChannelInfo;
 import com.alisiikh.domain.YouTubeVideoInfo;
 import com.alisiikh.domain.YouTubeVideosSearchInfo;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.commons.lang3.StringUtils;
+import com.alisiikh.exception.YouTubeDataFetchException;
+import com.alisiikh.exception.YouTubeEntityNotFoundException;
 import org.apache.commons.lang3.Validate;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -13,12 +16,15 @@ import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -36,100 +42,174 @@ public class YouTubeService implements IYouTubeService {
 	private static final Logger LOG = LoggerFactory.getLogger(YouTubeService.class);
 
 	private static final Pattern DURATION_PATTERN = Pattern.compile("PT(\\d+)M(\\d+)S");
+	private static final String YOUTUBE_WEBSITE_ADDRESS = "https://www.youtube.com";
 
 	private RestTemplate restTemplate;
 	private ThreadPoolTaskExecutor taskExecutor;
 
 	@Override
 	public YouTubeVideoInfo getVideoInfo(String videoId) {
-		// TODO: Possibly use GET https://www.youtube.com/user/{channelId}/about?spf=navigate
 		Validate.notBlank(videoId, "Video id is required!");
 
 		try {
-			Document doc = fetchDocument("https://www.youtube.com/watch?v=" + videoId);
+			Optional<JSONArray> jsonArray = readDataFromYoutube("/watch?spf=navigate&v=" + encodeParam(videoId));
+			if (!jsonArray.isPresent()) {
+				LOG.warn("Failed to get data from YouTube");
+				return null;
+			}
 
-			return gatherVideoInfo(doc);
-//			Map<String, String> responseMap = readDataFromYoutube("https://www.youtube.com/watch?spf=navigate&v=" + videoId);
-//			TODO: finish
-//			return null;
+			JSONObject nestedObj = (JSONObject) jsonArray.get().get(3);
+			String contentHtml = (String) ((JSONObject) nestedObj.get("body"))
+					.get("watch7-container");
+
+			Document doc = Jsoup.parse(contentHtml);
+
+			return findVideoInfo(doc);
 		} catch (IOException e) {
-			LOG.debug("Exception occurred during fetching video info");
+			LOG.warn("Exception occurred during fetching video info", e);
 			return null;
 		}
 	}
 
-	private Map<String, String> readDataFromYoutube(String url) throws IOException {
-		ResponseEntity<String> jsonData = restTemplate.getForEntity(url, String.class);
+	private String encodeParam(String param) {
+		try {
+			return URLEncoder.encode(param, "UTF-8");
+		} catch (UnsupportedEncodingException e) {
+			return param;
+		}
+	}
 
-		@SuppressWarnings("unchecked")
-		Map<String, String> responseMap = (Map<String, String>) new ObjectMapper().readValue(jsonData.getBody(), HashMap.class);
-		return responseMap;
+	private <T> Optional<T> readDataFromYoutube(String url) throws IOException {
+		HttpHeaders headers = new HttpHeaders();
+		headers.add("Accept-Language", "en-US");
+
+		HttpEntity<String> httpEntity = new HttpEntity<>("parameters", headers);
+		try {
+			ResponseEntity<String> jsonData = restTemplate.exchange(YOUTUBE_WEBSITE_ADDRESS + url, HttpMethod.GET, httpEntity, String.class);
+
+			JSONParser jsonParser = new JSONParser();
+
+			try {
+				@SuppressWarnings("unchecked")
+				T json = (T) jsonParser.parse(jsonData.getBody());
+				return Optional.of(json);
+			} catch (org.json.simple.parser.ParseException e) {
+				LOG.warn("Failed to parse JSON data passed by YouTube.");
+				return Optional.empty();
+			}
+		} catch (HttpClientErrorException e) {
+			if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+				throw new YouTubeEntityNotFoundException("Failed to find anything against the following url: "
+						+ YOUTUBE_WEBSITE_ADDRESS + url);
+			} else {
+				throw new YouTubeDataFetchException();
+			}
+		}
 	}
 
 	@Override
 	public YouTubeChannelInfo getChannelInfo(String channelId) {
-		// TODO: Possibly use GET https://www.youtube.com/user/{channelId}/about?spf=navigate
 		Validate.notBlank(channelId, "Channel id is required!");
 
 		try {
-			Document doc = fetchDocument("https://www.youtube.com/channel/" + channelId + "/about");
+			Optional<JSONObject> jsonObj = readDataFromYoutube("/channel/" + encodeParam(channelId) + "/about?spf=navigate");
+			if (!jsonObj.isPresent()) {
+				throw new YouTubeDataFetchException();
+			}
 
-			return gatherChannelInfo(doc);
+			String contentHtml = (String) ((JSONObject) jsonObj.get().get("body")).get("content");
+
+			Document doc = Jsoup.parse(contentHtml);
+
+			YouTubeChannelInfo channelInfo = findChannelInfo(doc);
+			channelInfo.setId(channelId);
+			channelInfo.setUrl(YOUTUBE_WEBSITE_ADDRESS + "/channel/" + encodeParam(channelId));
+
+			return channelInfo;
 		} catch (IOException e) {
-			LOG.debug("Exception occurred during fetching channel info");
-			return null;
+			throw new YouTubeDataFetchException(e);
 		}
 	}
 
 	@Override
-	public YouTubeVideosSearchInfo getChannelVideos(String channelId, int size) {
-		// TODO: Possibly use GET https://www.youtube.com/user/fxigr1/videos?spf=navigate
-		// and if more more than 30 videos required,
-		// use https://www.youtube.com/browse_ajax?action_continuation=1&continuation=4qmFsgI8EhhVQ3JfZndGLW4tMl9vbFRZZC1tM24zMmcaIEVnWjJhV1JsYjNNZ0FEQUJPQUZnQVdvQWVnRXl1QUVB
-		// that could be found in $('#content #browse-items-primary .load-more-button').data('uix-load-more-href');
+	public YouTubeVideosSearchInfo getMostPopularVideosOfChannel(String channelId, int size) {
+			Validate.isTrue(size > 0 && size <= 50);
 
-		try {
-			Document doc = fetchDocument("https://www.youtube.com/channel/" + channelId + "/videos?view=0&flow=grid&sort=p");
 			YouTubeVideosSearchInfo videosSearchInfo = new YouTubeVideosSearchInfo();
-			Future<?> channelInfoTask = taskExecutor.submit(() -> videosSearchInfo.setChannelInfo(getChannelInfo(channelId)));
-			Future<?> channelVideosInfoTask = taskExecutor.submit(() -> videosSearchInfo.setVideos(gatherChannelVideosInfo(doc, size)));
+
+			CountDownLatch latch = new CountDownLatch(2);
+
+			taskExecutor.submit(() -> {
+				try {
+					videosSearchInfo.setChannelInfo(getChannelInfo(channelId));
+				} finally {
+					latch.countDown();
+				}
+			});
+			taskExecutor.submit(() -> {
+				try {
+					Optional<JSONObject> jsonObject = readDataFromYoutube("/channel/" + channelId
+							+ "/videos?sort=da&flow=grid&view=0&spf=navigate");
+					if (!jsonObject.isPresent()) {
+						throw new YouTubeDataFetchException("Failed to read data from YouTube");
+					}
+					String contentHtml = (String) ((JSONObject) jsonObject.get().get("body")).get("content");
+
+					Document doc = Jsoup.parse(contentHtml);
+
+					videosSearchInfo.setVideos(gatherChannelVideosInfo(doc, size));
+				} catch (IOException e) {
+					LOG.warn("Exception occurred during fetching channel videos");
+				} finally {
+					latch.countDown();
+				}
+			});
 			videosSearchInfo.setRequestedVideos(size);
 
 			try {
-				channelInfoTask.get();
-				channelVideosInfoTask.get();
-			} catch (InterruptedException | ExecutionException e) {
-				// nothing
+				latch.await(20, TimeUnit.SECONDS);
+			} catch (InterruptedException e) {
+				throw new YouTubeDataFetchException(e);
 			}
 
 			return videosSearchInfo;
-		} catch (IOException e) {
-			LOG.debug("Exception occurred during fetching channel videos");
-			return null;
-		}
 	}
 
 	private List<YouTubeVideoInfo> gatherChannelVideosInfo(Document doc, int size) {
 		Elements videoBlocks = doc.select("#channels-browse-content-grid .channels-content-item");
 
-		if (videoBlocks.size() < size) {
-			String moreVideosHref = doc.select("#browse-items-primary .load-more-button").attr("data-uix-load-more-href");
+		int currentSize = videoBlocks.size();
 
+		String moreVideosHref = doc.select("#browse-items-primary .load-more-button")
+				.attr("data-uix-load-more-href");
+
+		while (currentSize < size) {
 			try {
-				Map<String, String> responseMap = readDataFromYoutube("https://www.youtube.com" + moreVideosHref);
-				Document extraVideosDoc = Jsoup.parse(responseMap.get("content_html"));
+				Optional<JSONObject> jsonObj = readDataFromYoutube(moreVideosHref);
+				if (!jsonObj.isPresent()) {
+					throw new YouTubeDataFetchException();
+				}
+
+				String contentHtml = (String) jsonObj.get().get("content_html");
+				String moreVideosButtonHtml = (String) jsonObj.get().get("load_more_widget_html");
+
+				moreVideosHref = Jsoup.parse(moreVideosButtonHtml).select(".load-more-button")
+						.attr("data-uix-load-more-href");
+
+				Document extraVideosDoc = Jsoup.parse(contentHtml);
 				Elements extraVideoBlocks = extraVideosDoc.select(".channels-content-item");
 
 				videoBlocks.addAll(extraVideoBlocks);
+				currentSize += extraVideoBlocks.size();
 			} catch (IOException e) {
 				// nothing
 			}
 		}
 
-		return gatherVideoInfos(videoBlocks.subList(0, size));
+		return fetchVideosInfo(videoBlocks.subList(0, size));
 	}
 
-	private List<YouTubeVideoInfo> gatherVideoInfos(List<Element> videoBlocks) {
+	private List<YouTubeVideoInfo> fetchVideosInfo(List<Element> videoBlocks) {
 		return videoBlocks.parallelStream().map((block) -> {
 			String videoId = block.select("> .yt-lockup-video").attr("data-context-item-id");
 
@@ -137,10 +217,8 @@ public class YouTubeService implements IYouTubeService {
 		}).filter(Objects::nonNull).collect(Collectors.toList());
 	}
 
-	private YouTubeChannelInfo gatherChannelInfo(Document doc) {
+	private YouTubeChannelInfo findChannelInfo(Document doc) {
 		YouTubeChannelInfo channelInfo = new YouTubeChannelInfo();
-		String channelId = doc.select("meta[itemprop='channelId']").attr("content");
-		String url = doc.select("link[itemprop='url']").attr("href");
 
 		Elements channelAttrs = doc.select("#browse-items-primary .about-metadata-stats .about-stats");
 		String subscribers = channelAttrs.select(".about-stat:nth-of-type(1) b").text()
@@ -153,8 +231,6 @@ public class YouTubeService implements IYouTubeService {
 				.replaceFirst("Joined", "")
 				.trim();
 
-		channelInfo.setId(channelId);
-		channelInfo.setUrl(url);
 		channelInfo.setSubscribers(Integer.valueOf(subscribers));
 		channelInfo.setViews(Integer.valueOf(totalViews));
 
@@ -162,40 +238,27 @@ public class YouTubeService implements IYouTubeService {
 		try {
 			channelInfo.setRegistrationDate(sdf.parse(registrationDate).getTime());
 		} catch (ParseException e) {
-			// nothing
+			LOG.debug("Failed to parse registration date string: " + registrationDate);
 		}
 
 		return channelInfo;
 	}
 
-	private Document fetchDocument(String url) throws IOException {
-		return Jsoup.connect(url)
-				.header("Accept-Language", "en-US")
-				.get();
-	}
-
-	private YouTubeVideoInfo gatherVideoInfo(Document doc) {
+	private YouTubeVideoInfo findVideoInfo(Document doc) {
 		YouTubeVideoInfo videoInfo = new YouTubeVideoInfo();
 
-		Elements content = doc.select("#content");
-		String videoId = content.select("meta[itemprop='videoId']")
+		String videoId = doc.select("meta[itemprop='videoId']")
 				.attr("content");
 
-		// this means video was not found
-		if (StringUtils.isBlank(videoId)) {
-			// TODO: Figure out why this happens even for existing videos
-			return null;
-		}
-
-		String url = content.select("link[itemprop='url']")
+		String url = doc.select("link[itemprop='url']")
 				.attr("href");
-		String views = content.select("meta[itemprop='interactionCount']")
+		String views = doc.select("meta[itemprop='interactionCount']")
 				.attr("content");
-		String datePublished = content.select("meta[itemprop='datePublished']")
+		String datePublished = doc.select("meta[itemprop='datePublished']")
 				.attr("content");
-		String title = content.select("meta[itemprop='name']")
+		String title = doc.select("meta[itemprop='name']")
 				.attr("content");
-		String duration = content.select("meta[itemprop='duration']")
+		String duration = doc.select("meta[itemprop='duration']")
 				.attr("content");
 
 		videoInfo.setId(videoId);

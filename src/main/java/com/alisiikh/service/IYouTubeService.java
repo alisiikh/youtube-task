@@ -13,5 +13,5 @@ public interface IYouTubeService {
 
 	YouTubeChannelInfo getChannelInfo(String channelId);
 
-	YouTubeVideosSearchInfo getChannelVideos(String channelId, int size);
+	YouTubeVideosSearchInfo getMostPopularVideosOfChannel(String channelId, int size);
 }
