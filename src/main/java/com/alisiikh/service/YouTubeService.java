@@ -31,6 +31,7 @@ public class YouTubeService implements IYouTubeService {
 
 	@Override
 	public YouTubeVideoInfo getVideoInfo(String videoId) {
+		// TODO: Possibly use GET https://www.youtube.com/user/{channelId}/about?spf=navigate
 		Validate.notBlank(videoId, "Video id is required!");
 
 		try {
@@ -45,6 +46,7 @@ public class YouTubeService implements IYouTubeService {
 
 	@Override
 	public YouTubeChannelInfo getChannelInfo(String channelId) {
+		// TODO: Possibly use GET https://www.youtube.com/user/{channelId}/about?spf=navigate
 		Validate.notBlank(channelId, "Channel id is required!");
 
 		try {
@@ -59,6 +61,10 @@ public class YouTubeService implements IYouTubeService {
 
 	@Override
 	public YouTubeVideosSearchInfo getChannelVideos(String channelId, int size) {
+		// TODO: Possibly use GET https://www.youtube.com/user/fxigr1/videos?spf=navigate
+		// and if more more than 30 videos required,
+		// use https://www.youtube.com/browse_ajax?action_continuation=1&continuation=4qmFsgI8EhhVQ3JfZndGLW4tMl9vbFRZZC1tM24zMmcaIEVnWjJhV1JsYjNNZ0FEQUJPQUZnQVdvQWVnRXl1QUVB
+		// that could be found in $('#content #browse-items-primary .load-more-button').data('uix-load-more-href');
 		return new YouTubeVideosSearchInfo();
 	}
 
