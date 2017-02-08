@@ -113,12 +113,10 @@ public class YouTubeService implements IYouTubeService {
 		Elements videoBlocks = doc.select("#channels-browse-content-grid .channels-content-item");
 
 		if (videoBlocks.size() < size) {
-			String relativeHref = doc.select("#browse-items-primary .load-more-button").attr("data-uix-load-more-href");
-			ResponseEntity<String> response = restTemplate.getForEntity("https://www.youtube.com" + relativeHref, String.class);
+			String moreVideosHref = doc.select("#browse-items-primary .load-more-button").attr("data-uix-load-more-href");
 
 			try {
-				@SuppressWarnings("unchecked")
-				Map<String, String> responseMap = (Map<String, String>) new ObjectMapper().readValue(response.getBody(), HashMap.class);
+				Map<String, String> responseMap = readDataFromYoutube("https://www.youtube.com" + moreVideosHref);
 				Document extraVideosDoc = Jsoup.parse(responseMap.get("content_html"));
 				Elements extraVideoBlocks = extraVideosDoc.select(".channels-content-item");
 
