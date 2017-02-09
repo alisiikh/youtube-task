@@ -1,10 +1,11 @@
 # YouTube information gatherer REST application
 
 Available entry points:
-
+```
 GET /youtube/video/{video_id}  
 GET /youtube/channel/{channel_id}  
-GET /youtube/channel/{channel_id}/videos[?size=(int)]  
+GET /youtube/channel/{channel_id}/videos[?size=(int)]
+```
 
 ## Run the application from console
 
@@ -13,7 +14,7 @@ You can run the application instantly in an embedded tomcat by running a command
 mvnw spring-boot:run
 ```
 
-In case you run te app via spring-boot plugin the context path will be empty.
+In case you run te app via spring-boot plugin the servlet context path will be root "/".
 
 Examples:
 ```
