@@ -21,3 +21,10 @@ For tomcat the hot deploy directory is
 
 The application path would be:  
 ```http://localhost:8080/youtube-task```
+
+Examples:
+```
+http://localhost:8080/youtube-task/youtube/channel/UC7yfnfvEUlXUIfm8rGLwZdA
+http://localhost:8080/youtube-task/youtube/channel/UC7yfnfvEUlXUIfm8rGLwZdA/videos?size=40
+http://localhost:8080/youtube-task/youtube/video/l8V6PkVV1Ec
+```
