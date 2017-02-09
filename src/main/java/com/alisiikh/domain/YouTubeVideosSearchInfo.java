@@ -10,7 +10,7 @@ import java.util.List;
  */
 @Data
 public class YouTubeVideosSearchInfo {
-	private YouTubeChannelInfo channelInfo;
+	private YouTubeChannelInfo channel;
 	private int requestedVideos;
 	private List<YouTubeVideoInfo> videos;
 }

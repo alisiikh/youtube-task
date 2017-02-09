@@ -29,6 +29,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -47,7 +48,7 @@ public class YouTubeService implements IYouTubeService {
 	private static final Pattern DURATION_PATTERN = Pattern.compile("PT(\\d+)M(\\d+)S");
 	private static final String YOUTUBE_WEBSITE_ADDRESS = "https://www.youtube.com";
 	private static final DateTimeFormatter PUBLISHED_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.US);
-	private static final DateTimeFormatter REGISTERED_DATE_FORMAT = DateTimeFormatter.ofPattern("MMM dd, yyyy",
+	private static final DateTimeFormatter REGISTERED_DATE_FORMAT = DateTimeFormatter.ofPattern("MMM d, yyyy",
 			Locale.US);
 
 	private RestTemplate restTemplate;
@@ -139,47 +140,54 @@ public class YouTubeService implements IYouTubeService {
 
 	@Override
 	public YouTubeVideosSearchInfo getMostPopularVideosOfChannel(String channelId, int size) {
-			Validate.isTrue(size > 0 && size <= 50);
+		Validate.isTrue(size > 0 && size <= 50);
 
-			YouTubeVideosSearchInfo videosSearchInfo = new YouTubeVideosSearchInfo();
+		YouTubeVideosSearchInfo videosSearchInfo = new YouTubeVideosSearchInfo();
 
-			CountDownLatch latch = new CountDownLatch(2);
+		CountDownLatch latch = new CountDownLatch(2);
+		AtomicBoolean requestSucceeded = new AtomicBoolean(true);
 
-			taskExecutor.submit(() -> {
-				try {
-					videosSearchInfo.setChannelInfo(getChannelInfo(channelId));
-				} finally {
-					latch.countDown();
-				}
-			});
-			taskExecutor.submit(() -> {
-				try {
-					Optional<JSONObject> jsonObject = readDataFromYoutube("/channel/" + channelId
-							+ "/videos?sort=p&flow=grid&view=0&spf=navigate");
-					if (!jsonObject.isPresent()) {
-						throw new YouTubeDataFetchException("Failed to read data from YouTube");
-					}
-					String contentHtml = (String) ((JSONObject) jsonObject.get().get("body")).get("content");
-
-					Document doc = Jsoup.parseBodyFragment(contentHtml);
-
-					videosSearchInfo.setVideos(gatherChannelVideosInfo(doc, size));
-				} catch (IOException e) {
-					LOG.warn("Exception occurred during fetching channel videos");
-				} finally {
-					latch.countDown();
-				}
-			});
-			videosSearchInfo.setRequestedVideos(size);
-
+		taskExecutor.submit(() -> {
 			try {
-				latch.await(20, TimeUnit.SECONDS);
-			} catch (InterruptedException e) {
-				LOG.debug("Failed to finish channel's most popular videos search");
-				throw new YouTubeDataFetchException(e);
+				videosSearchInfo.setChannel(getChannelInfo(channelId));
+			} catch (Exception e) {
+				requestSucceeded.set(false);
+			} finally {
+				latch.countDown();
 			}
+		});
+		taskExecutor.submit(() -> {
+			try {
+				Optional<JSONObject> jsonObject = readDataFromYoutube(
+						"/channel/" + channelId + "/videos?sort=p&flow=grid&view=0&spf=navigate");
+				if (!jsonObject.isPresent()) {
+					throw new YouTubeDataFetchException("Failed to read data from YouTube");
+				}
+				String contentHtml = (String) ((JSONObject) jsonObject.get().get("body")).get("content");
 
-			return videosSearchInfo;
+				Document doc = Jsoup.parseBodyFragment(contentHtml);
+
+				videosSearchInfo.setVideos(gatherChannelVideosInfo(doc, size));
+			} catch (Exception e) {
+				requestSucceeded.set(false);
+			} finally {
+				latch.countDown();
+			}
+		});
+		videosSearchInfo.setRequestedVideos(size);
+
+		try {
+			latch.await(20, TimeUnit.SECONDS);
+		} catch (InterruptedException e) {
+			LOG.debug("Failed to finish channel's most popular videos search");
+			throw new YouTubeDataFetchException(e);
+		}
+
+		if (!requestSucceeded.get()) {
+			throw new YouTubeEntityNotFoundException("Failed to gather channel videos information");
+		}
+
+		return videosSearchInfo;
 	}
 
 	private List<YouTubeVideoInfo> gatherChannelVideosInfo(Document doc, int size) {
@@ -201,7 +209,9 @@ public class YouTubeService implements IYouTubeService {
 					String contentHtml = (String) jsonObj.get().get("content_html");
 					String moreVideosButtonHtml = (String) jsonObj.get().get("load_more_widget_html");
 
-					loadMoreVideosHref = Jsoup.parseBodyFragment(moreVideosButtonHtml).body().select(".load-more-button")
+					loadMoreVideosHref = Jsoup.parseBodyFragment(moreVideosButtonHtml)
+							.body()
+							.select(".load-more-button")
 							.attr("data-uix-load-more-href");
 
 					Element extraVideosBody = Jsoup.parseBodyFragment(contentHtml).body();

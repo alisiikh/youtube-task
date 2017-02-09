@@ -38,7 +38,7 @@ public class YouTubeServiceIntegrationTests {
 	@Test
 	public void testServiceCanHandleMultipleRequestsOnVideos() throws InterruptedException {
 		final List<YouTubeVideoInfo> videoInfos = new CopyOnWriteArrayList<>();
-		final int requestsCount = 1000;
+		final int requestsCount = 100;
 		final CountDownLatch latch = new CountDownLatch(requestsCount);
 
 		for (int i = 0; i < requestsCount; i++) {
@@ -75,7 +75,7 @@ public class YouTubeServiceIntegrationTests {
 	@Test
 	public void testServiceCanHandleMultipleChannelInfoRequests() throws InterruptedException {
 		final List<YouTubeChannelInfo> channelInfos = new CopyOnWriteArrayList<>();
-		final int requestsCount = 1000;
+		final int requestsCount = 100;
 		final CountDownLatch latch = new CountDownLatch(requestsCount);
 
 		for (int i = 0; i < requestsCount; i++) {
@@ -112,7 +112,7 @@ public class YouTubeServiceIntegrationTests {
 		int videosSize = 50;
 		YouTubeVideosSearchInfo searchInfo = youTubeService.getMostPopularVideosOfChannel("UC7yfnfvEUlXUIfm8rGLwZdA", videosSize);
 
-		YouTubeChannelInfo channelInfo = searchInfo.getChannelInfo();
+		YouTubeChannelInfo channelInfo = searchInfo.getChannel();
 		assertEquals(channelInfo.getRegistrationDate(), 1295474400000L);
 		assertTrue(channelInfo.getViews() >= 6239991);
 		assertEquals(channelInfo.getId(), "UC7yfnfvEUlXUIfm8rGLwZdA");
