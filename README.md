@@ -25,18 +25,18 @@ http://localhost:8080/youtube/video/l8V6PkVV1Ec
 
 ## Deploy application to the application server
 
-To build an executable for an application server, please use:
+To build an artifact for an application server, please use:
 ```
 mvnw clean package
 ```
 
-Built package would be under target directory named:
+Built package would be under "target" directory with the name:
 ```
 youtube-task.war
 ```
 
 At this point you just need to put it under deployment directory of your application server.  
-For tomcat the hot deploy directory is
+For tomcat the hot deployment directory is
 ```
 $TOMCAT_HOME/webapps
 ```
