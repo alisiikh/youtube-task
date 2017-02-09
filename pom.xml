@@ -6,7 +6,7 @@
     <groupId>com.alisiikh</groupId>
     <artifactId>youtube-task</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <packaging>jar</packaging>
+    <packaging>war</packaging>
 
     <name>youtube-task</name>
     <description>YouTube information server based on Spring Boot</description>
@@ -70,6 +70,7 @@
     </dependencies>
 
     <build>
+        <finalName>youtube-task</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
