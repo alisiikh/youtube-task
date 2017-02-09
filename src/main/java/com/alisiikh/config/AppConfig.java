@@ -15,7 +15,8 @@ public class AppConfig {
 		ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
 		taskExecutor.setCorePoolSize(20);
 		taskExecutor.setMaxPoolSize(50);
-		taskExecutor.setThreadGroupName("youtube-");
+		taskExecutor.setThreadGroupName("YouTube-Thread-Group");
+		taskExecutor.setThreadNamePrefix("YouTube-Processing-Thread-");
 		taskExecutor.setWaitForTasksToCompleteOnShutdown(false);
 		return taskExecutor;
 	}
