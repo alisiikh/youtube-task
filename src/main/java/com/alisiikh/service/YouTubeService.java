@@ -5,6 +5,7 @@ import com.alisiikh.domain.YouTubeVideoInfo;
 import com.alisiikh.domain.YouTubeVideosSearchInfo;
 import com.alisiikh.exception.YouTubeDataFetchException;
 import com.alisiikh.exception.YouTubeEntityNotFoundException;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -199,7 +200,7 @@ public class YouTubeService implements IYouTubeService {
 			String loadMoreVideosHref = doc.select("#browse-items-primary .load-more-button")
 					.attr("data-uix-load-more-href");
 
-			while (currentSize < size) {
+			while (currentSize < size && StringUtils.isNotBlank(loadMoreVideosHref)) {
 				try {
 					Optional<JSONObject> jsonObj = readDataFromYoutube(loadMoreVideosHref);
 					if (!jsonObj.isPresent()) {
@@ -225,12 +226,16 @@ public class YouTubeService implements IYouTubeService {
 			}
 		}
 
-		return videoBlocks.subList(0, size).parallelStream().map((block) -> {
+		int finalSize = Math.min(videoBlocks.size(), size);
+
+		List<YouTubeVideoInfo> videoInfos = videoBlocks.subList(0, finalSize).parallelStream().map((block) -> {
 			String videoId = block.select("> .yt-lockup-video")
 					.attr("data-context-item-id");
 
 			return getVideoInfo(videoId);
 		}).collect(Collectors.toList());
+
+		return videoInfos;
 	}
 
 	private YouTubeChannelInfo findChannelInfo(Document doc) {
@@ -247,16 +252,24 @@ public class YouTubeService implements IYouTubeService {
 				.replaceFirst("Joined", "")
 				.trim();
 
-		channelInfo.setSubscribers(Integer.valueOf(subscribers));
-		channelInfo.setViews(Integer.valueOf(totalViews));
+		// TODO: Small channels have different layout and some values are missed, so probably a better information resource is required.
 
-		try {
-			LocalDate registeredDate = LocalDate.parse(dateRegistered, REGISTERED_DATE_FORMAT);
-			long registeredDateMillis = registeredDate.atStartOfDay(ZoneId.systemDefault()).toEpochSecond() * 1000;
+		if (StringUtils.isNotBlank(subscribers)) {
+			channelInfo.setSubscribers(Integer.valueOf(subscribers));
+		}
+		if (StringUtils.isNotBlank(totalViews)) {
+			channelInfo.setViews(Integer.valueOf(totalViews));
+		}
 
-			channelInfo.setRegistrationDate(registeredDateMillis);
-		} catch (DateTimeParseException e) {
-			LOG.debug("Failed to parse registration date string: " + dateRegistered);
+		if (StringUtils.isNotBlank(dateRegistered)) {
+			try {
+				LocalDate registeredDate = LocalDate.parse(dateRegistered, REGISTERED_DATE_FORMAT);
+				long registeredDateMillis = registeredDate.atStartOfDay(ZoneId.systemDefault()).toEpochSecond() * 1000;
+
+				channelInfo.setRegistrationDate(registeredDateMillis);
+			} catch (DateTimeParseException e) {
+				LOG.debug("Failed to parse registration date string: " + dateRegistered);
+			}
 		}
 
 		return channelInfo;

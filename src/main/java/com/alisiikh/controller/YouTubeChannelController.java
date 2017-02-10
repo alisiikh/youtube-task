@@ -26,7 +26,7 @@ public class YouTubeChannelController {
 	@RequestMapping(value = "/{channelId}/videos", method = RequestMethod.GET)
 	public YouTubeVideosSearchInfo getVideosInfo(@PathVariable("channelId") String channelId,
 			@RequestParam(defaultValue = "10") int size, HttpServletResponse response) throws IOException {
-		if (size <= 0) {
+		if (size <= 0 || size > 50) {
 			response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Size parameter should be in bounds of (0,50]");
 			return null;
 		}
